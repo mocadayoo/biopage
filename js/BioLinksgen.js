@@ -8,7 +8,7 @@ const links = [
     {
         title: "VRChat",
         url: "https://vrchat.com/home/user/usr_d24f8b50-8bc1-4935-b482-3252a1777ed5",
-        banner_img: "/assets/VRCLogo.png",
+        banner_img: "./assets/VRCLogo.png",
         alt_text: "VRChat Logo"
     }
 ]

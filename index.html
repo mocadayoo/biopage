@@ -8,20 +8,33 @@
     <style type="text/tailwindcss">
         @import "tailwindcss";
         @custom-variant dark (&:where(.dark, .dark *));
+        #particles-js {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 4;
+            pointer-events: none;
+        }
     </style>
     <script src="./js/Themeswitch.js"></script>
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
     <title>Mocadao :D</title>
 </head>
 
 <body
     class="overflow-x-hidden bg-[#f0f0f0] dark:bg-[#121212] min-h-screen flex items-center justify-center transition-colors duration-500 p-4">
+    <div id="particles-js"></div>
+    <label for="switch_pedro" id="pedro_all" class="absolute top-3 right-3 flex-col cursor-pointer z-50" style="display: none;">
+        <input type="checkbox" id="switch_pedro" class="sr-only peer">
+        <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-black/5 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+        <span class="absolute right-1 ml-3 text-sm font-mediu text-[#1a1a1a] dark:text-[#e6e6e6]">Pedro</span>
+    </label>
     <button id="theme-toggle"
         class="fixed bottom-5 right-5 p-3 rounded-br-3xl rounded-tl-3xl bg-white/20 dark:bg-black/20 backdrop-blur-md border border-black/20 dark:border-white/20 shadow-lg cursor-pointer hover:scale-110 transition-all active:scale-95 z-50">
         <span id="sun-icon" class="hidden dark:block text-yellow-400">☀️</span>
         <span id="moon-icon" class="block dark:hidden text-slate-600">🌙</span>
     </button>
     <div
-        class="bg-white/80 dark:bg-[#1a1a1a]/80 backdrop-blur-xl text-[#1a1a1a] dark:text-[#e6e6e6] max-w-md w-full p-8 shadow-2xl rounded-[2.5rem] flex flex-col items-center border border-white/20 dark:border-white/5 transition-all duration-500">
+        class="z-10 bg-white/80 dark:bg-[#1a1a1a]/80 backdrop-blur-xl text-[#1a1a1a] dark:text-[#e6e6e6] max-w-md w-full p-8 shadow-2xl rounded-[2.5rem] flex flex-col items-center border border-white/20 dark:border-white/5 transition-all duration-500">
 
         <div class="icon mt-2 mb-4">
             <img class="rounded-full object-contain ring-4 ring-black/5 dark:ring-white/5"
@@ -38,10 +51,12 @@
         </div>
 
         <div class="links w-full text-center space-y-4 pt-6" id="link_container">
-            
+
         </div>
     </div>
+    <audio id="pedro_audio" loop="true" src="./assets/pedropedro.mp3"></audio>
 </body>
 <script src="./js/BioLinksgen.js"></script>
 <script src="./js/funny.js"></script>
+
 </html>

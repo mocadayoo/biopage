@@ -1,0 +1,53 @@
+---
+import { Image } from "astro:assets";
+
+import topVideo from "../assets/topVideo.mp4";
+import githubIcon from "../assets/github.svg";
+
+import Halftone from "./Halftone.astro";
+---
+
+<section
+    class="border-whites border-aqua relative grid h-dvh w-full items-center justify-center overflow-hidden border-6 border-cyan-500"
+>
+    <video
+        class="col-start-1 row-start-1 h-full w-full object-cover"
+        autoplay
+        muted
+        loop
+        playsinline
+    >
+        <source src={topVideo} type="video/mp4" />
+    </video>
+    <Halftone class="col-start-1 row-start-1" />
+    <div
+        class="absolute top-1/2 left-0 col-start-1 row-start-1 -translate-y-1/2 px-[8vw] text-8xl font-bold text-white"
+    >
+        <h1 class="drop-shadow-[0_6px_6px_rgba(0,0,0,0.65)]">Moca.</h1>
+    </div>
+    <div
+        class="absolute top-1/2 right-0 col-start-1 row-start-1 grid -translate-y-1/2 items-center gap-4 px-[8vw] text-right text-5xl font-semibold tracking-wider text-white"
+    >
+        <div class="relative inline-grid">
+            <span
+                aria-hidden="true"
+                class="col-start-1 row-start-1 animate-[textGradient_4s_linear_infinite] bg-[linear-gradient(-45deg,#ff6b6b,#ff9f43,#ffd166,#48bfff,#6c5ce7,#c56cf0,#ff6b9d,#ff6b6b)] bg-size-[300%_100%] bg-clip-text text-8xl text-transparent opacity-80 blur-xl"
+            >
+                I'm
+            </span>
+
+            <h1
+                class="col-start-1 row-start-1 animate-[textGradient_4s_linear_infinite] bg-[linear-gradient(-45deg,#ff6b6b,#ff9f43,#ffd166,#48bfff,#6c5ce7,#c56cf0,#ff6b9d,#ff6b6b)] bg-size-[300%_100%] bg-clip-text text-8xl text-transparent"
+            >
+                I'm
+            </h1>
+        </div>
+        <p class="drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]">Developer</p>
+        <p class="drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]">Video Creator</p>
+    </div>
+    <div
+        class="absolute top-0 right-0 col-start-1 row-start-1 flex items-center rounded-bl-xl bg-cyan-500 px-6 py-2 font-bold text-white"
+    >
+        <p class="-translate-y-0.5 leading-none">hero</p>
+    </div>
+</section>

@@ -1,139 +1,173 @@
-<canvas class="halftone pointer-events-none absolute inset-0"></canvas>
+---
+interface Props {
+    spacing?: number;
+    baseRadius?: number;
+    influenceRadius?: number;
+    maxScale?: number;
+    mouseLerpSpeed?: number;
+    radiusLerpSpeed?: number;
+}
+
+const {
+    spacing = 18,
+    baseRadius = 0.5,
+    influenceRadius = 140,
+    maxScale = 14,
+    mouseLerpSpeed = 0.12,
+    radiusLerpSpeed = 0.12,
+} = Astro.props;
+---
+
+<canvas
+    class="halftone pointer-events-none absolute inset-0"
+    data-spacing={spacing}
+    data-base-radius={baseRadius}
+    data-influence-radius={influenceRadius}
+    data-max-scale={maxScale}
+    data-mouse-lerp-speed={mouseLerpSpeed}
+    data-radius-lerp-speed={radiusLerpSpeed}></canvas>
 
 <script>
-    const canvas = document.querySelector(".halftone");
+    document
+        .querySelectorAll<HTMLCanvasElement>(".halftone")
+        .forEach((canvas) => {
+            if (canvas instanceof HTMLCanvasElement) {
+                const ctx = canvas.getContext("2d");
 
-    if (canvas instanceof HTMLCanvasElement) {
-        const ctx = canvas.getContext("2d");
+                const spacing = Number(canvas.dataset.spacing);
+                const baseRadius = Number(canvas.dataset.baseRadius);
+                const influenceRadius = Number(canvas.dataset.influenceRadius);
+                const maxScale = Number(canvas.dataset.maxScale);
 
-        const spacing = 18;
-        const baseRadius = 0.5;
-        const influenceRadius = 100;
-        const maxScale = 14;
+                const mouseLerpSpeed = Number(canvas.dataset.mouseLerpSpeed);
+                const radiusLerpSpeed = Number(canvas.dataset.radiusLerpSpeed);
 
-        const mouseLerpSpeed = 0.08;
-        const radiusLerpSpeed = 0.12;
+                let mouseActive = false;
 
-        let mouseActive = false;
+                let targetMouseX = 0;
+                let targetMouseY = 0;
 
-        let targetMouseX = 0;
-        let targetMouseY = 0;
+                let currentMouseX = 0;
+                let currentMouseY = 0;
 
-        let currentMouseX = 0;
-        let currentMouseY = 0;
+                let dots: {
+                    x: number;
+                    y: number;
+                    radius: number;
+                }[] = [];
 
-        let dots: {
-            x: number;
-            y: number;
-            radius: number;
-        }[] = [];
+                const lerp = (a: number, b: number, t: number) => {
+                    return a + (b - a) * t;
+                };
 
-        const lerp = (a: number, b: number, t: number) => {
-            return a + (b - a) * t;
-        };
+                const rebuildDots = () => {
+                    dots = [];
 
-        const rebuildDots = () => {
-            dots = [];
+                    for (let y = 0; y < window.innerHeight; y += spacing) {
+                        for (let x = 0; x < window.innerWidth; x += spacing) {
+                            dots.push({
+                                x,
+                                y,
+                                radius: baseRadius,
+                            });
+                        }
+                    }
+                };
 
-            for (let y = 0; y < window.innerHeight; y += spacing) {
-                for (let x = 0; x < window.innerWidth; x += spacing) {
-                    dots.push({
-                        x,
-                        y,
-                        radius: baseRadius,
-                    });
-                }
+                const resize = () => {
+                    const dpr = window.devicePixelRatio || 1;
+
+                    canvas.width = window.innerWidth * dpr;
+                    canvas.height = window.innerHeight * dpr;
+
+                    canvas.style.width = `${window.innerWidth}px`;
+                    canvas.style.height = `${window.innerHeight}px`;
+
+                    ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+                    rebuildDots();
+                };
+
+                window.addEventListener("mousemove", (event) => {
+                    targetMouseX = event.clientX;
+                    targetMouseY = event.clientY;
+
+                    if (!mouseActive) {
+                        currentMouseX = targetMouseX;
+                        currentMouseY = targetMouseY;
+                    }
+
+                    mouseActive = true;
+                });
+
+                document.documentElement.addEventListener("mouseleave", () => {
+                    mouseActive = false;
+                });
+
+                window.addEventListener("blur", () => {
+                    mouseActive = false;
+                });
+
+                window.addEventListener("resize", resize);
+
+                resize();
+
+                const draw = () => {
+                    if (!ctx) return;
+
+                    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+                    if (mouseActive) {
+                        currentMouseX = lerp(
+                            currentMouseX,
+                            targetMouseX,
+                            mouseLerpSpeed,
+                        );
+
+                        currentMouseY = lerp(
+                            currentMouseY,
+                            targetMouseY,
+                            radiusLerpSpeed,
+                        );
+                    }
+
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+
+                    for (const dot of dots) {
+                        let targetRadius = baseRadius;
+
+                        if (mouseActive) {
+                            const dx = dot.x - currentMouseX;
+                            const dy = dot.y - currentMouseY;
+
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+
+                            const influence = Math.max(
+                                0,
+                                1 - distance / influenceRadius,
+                            );
+
+                            const eased = influence * influence;
+
+                            targetRadius =
+                                baseRadius * (1 + eased * (maxScale - 1));
+                        }
+
+                        dot.radius = lerp(
+                            dot.radius,
+                            targetRadius,
+                            radiusLerpSpeed,
+                        );
+
+                        ctx.beginPath();
+                        ctx.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    requestAnimationFrame(draw);
+                };
+
+                draw();
             }
-        };
-
-        const resize = () => {
-            const dpr = window.devicePixelRatio || 1;
-
-            canvas.width = window.innerWidth * dpr;
-            canvas.height = window.innerHeight * dpr;
-
-            canvas.style.width = `${window.innerWidth}px`;
-            canvas.style.height = `${window.innerHeight}px`;
-
-            ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-            rebuildDots();
-        };
-
-        window.addEventListener("mousemove", (event) => {
-            targetMouseX = event.clientX;
-            targetMouseY = event.clientY;
-
-            if (!mouseActive) {
-                currentMouseX = targetMouseX;
-                currentMouseY = targetMouseY;
-            }
-
-            mouseActive = true;
         });
-
-        document.documentElement.addEventListener("mouseleave", () => {
-            mouseActive = false;
-        });
-
-        window.addEventListener("blur", () => {
-            mouseActive = false;
-        });
-
-        window.addEventListener("resize", resize);
-
-        resize();
-
-        const draw = () => {
-            if (!ctx) return;
-
-            ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-
-            if (mouseActive) {
-                currentMouseX = lerp(
-                    currentMouseX,
-                    targetMouseX,
-                    mouseLerpSpeed,
-                );
-
-                currentMouseY = lerp(
-                    currentMouseY,
-                    targetMouseY,
-                    mouseLerpSpeed,
-                );
-            }
-
-            ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
-
-            for (const dot of dots) {
-                let targetRadius = baseRadius;
-
-                if (mouseActive) {
-                    const dx = dot.x - currentMouseX;
-                    const dy = dot.y - currentMouseY;
-
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-
-                    const influence = Math.max(
-                        0,
-                        1 - distance / influenceRadius,
-                    );
-
-                    const eased = influence * influence;
-
-                    targetRadius = baseRadius * (1 + eased * (maxScale - 1));
-                }
-
-                dot.radius = lerp(dot.radius, targetRadius, radiusLerpSpeed);
-
-                ctx.beginPath();
-                ctx.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            requestAnimationFrame(draw);
-        };
-
-        draw();
-    }
 </script>

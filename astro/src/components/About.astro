@@ -1,0 +1,83 @@
+<section
+    class="relative grid h-dvh w-full gap-5 overflow-hidden border-6 border-purple-500 bg-[#181818] p-6 font-bold text-white md:grid-cols-[0.8fr_1fr]"
+>
+    <div
+        id="aboutMe"
+        class="absolute top-1/2 left-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 overflow-hidden bg-[#181818] text-[clamp(2rem,14vmin,12rem)] leading-none tracking-widest"
+    >
+        <h1
+            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center whitespace-nowrap"
+        >
+            ABOUT
+            <br class="md:hidden" />
+            ME
+        </h1>
+    </div>
+    <div
+        class="col-start-1 row-start-1 rounded-tl-4xl rounded-br-4xl border border-white/30 bg-[#1E1E1E] px-[clamp(1rem,1.5vw,2rem)] py-[1.5vh]"
+    >
+        <h1 class="text-2xl font-bold md:text-4xl">Profile</h1>
+    </div>
+    <div
+        class="col-start-1 row-start-2 rounded-tl-4xl rounded-br-4xl border border-white/30 bg-[#1E1E1E] px-[clamp(1rem,1.5vw,2rem)] py-[1.5vh]"
+    >
+        <h1 class="text-2xl font-bold md:text-4xl">Skills</h1>
+    </div>
+    <div
+        class="col-start-1 row-span-2 rounded-tl-4xl rounded-br-4xl border border-white/30 bg-[#1E1E1E] px-[clamp(1rem,1.5vw,2rem)] py-[1.5vh] md:col-start-2"
+    >
+        <h1 class="text-2xl font-bold md:text-4xl">Timeline</h1>
+    </div>
+</section>
+
+<script>
+    import { gsap } from "gsap";
+    import { SplitText } from "gsap/SplitText";
+    import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+    gsap.registerPlugin(SplitText, ScrollTrigger);
+
+    gsap.context(() => {
+        const split = SplitText.create("#aboutMe", {
+            type: "chars",
+        });
+
+        const tl = gsap.timeline({
+            scrollTrigger: {
+                trigger: "#aboutMe",
+                start: "top 40%",
+                once: true,
+            },
+        });
+
+        tl.fromTo(
+            split.chars,
+            {
+                yPercent: 140,
+                rotate: 4,
+                opacity: 0,
+            },
+            {
+                yPercent: 0,
+                rotate: 0,
+                opacity: 1,
+                duration: 0.65,
+                ease: "elastic.out(0.75, 0.5)",
+                stagger: {
+                    each: 0.025,
+                    from: "start",
+                },
+            },
+        );
+
+        tl.to(
+            "#aboutMe",
+            {
+                opacity: 0,
+                duration: 0.5,
+                ease: "power2.out",
+            },
+            "+=0.2",
+        );
+    });
+</script>

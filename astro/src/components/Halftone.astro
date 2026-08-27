@@ -4,8 +4,12 @@ interface Props {
     baseRadius?: number;
     influenceRadius?: number;
     maxScale?: number;
+
     mouseLerpSpeed?: number;
     radiusLerpSpeed?: number;
+
+    velocityLerpSpeed?: number;
+    velocityDecay?: number;
 }
 
 const {
@@ -13,8 +17,12 @@ const {
     baseRadius = 0.5,
     influenceRadius = 140,
     maxScale = 12,
+
     mouseLerpSpeed = 8,
-    radiusLerpSpeed = 3,
+    radiusLerpSpeed = 8,
+
+    velocityLerpSpeed = 10,
+    velocityDecay = 0.0012,
 } = Astro.props;
 ---
 
@@ -25,7 +33,9 @@ const {
     data-influence-radius={influenceRadius}
     data-max-scale={maxScale}
     data-mouse-lerp-speed={mouseLerpSpeed}
-    data-radius-lerp-speed={radiusLerpSpeed}></canvas>
+    data-radius-lerp-speed={radiusLerpSpeed}
+    data-velocity-lerp-speed={velocityLerpSpeed}
+    data-velocity-decay={velocityDecay}></canvas>
 
 <script>
     const vertexShaderSource = `#version 300 es
@@ -55,6 +65,9 @@ uniform float uInfluenceRadius;
 uniform float uMaxScale;
 uniform float uMouseInfluence;
 
+uniform float uMouseVelocity;
+uniform float uVelocityDecay;
+
 out vec4 outColor;
 
 void main() {
@@ -74,12 +87,14 @@ void main() {
   influence *= uMouseInfluence;
   influence *= influence;
 
+  float growthStrength = exp(-uMouseVelocity * uVelocityDecay);
+
   float radius =
     uBaseRadius *
     mix(
       1.0,
       uMaxScale,
-      influence
+      influence * growthStrength
     );
 
   float aa = max(fwidth(dotDistance), 0.5);
@@ -212,6 +227,9 @@ void main() {
                     program,
                     "uMouseInfluence",
                 ),
+
+                mouseVelocity: gl.getUniformLocation(program, "uMouseVelocity"),
+                velocityDecay: gl.getUniformLocation(program, "uVelocityDecay"),
             };
 
             const spacing = Number(canvas.dataset.spacing);
@@ -220,8 +238,10 @@ void main() {
             const maxScale = Number(canvas.dataset.maxScale);
 
             const mouseLerpSpeed = Number(canvas.dataset.mouseLerpSpeed);
-
             const radiusLerpSpeed = Number(canvas.dataset.radiusLerpSpeed);
+
+            const velocityLerpSpeed = Number(canvas.dataset.velocityLerpSpeed);
+            const velocityDecay = Number(canvas.dataset.velocityDecay);
 
             let width = 0;
             let height = 0;
@@ -235,6 +255,10 @@ void main() {
             let currentMouseX = 0;
             let currentMouseY = 0;
 
+            let previousMouseX = 0;
+            let previousMouseY = 0;
+
+            let mouseVelocity = 0;
             let currentInfluence = 0;
 
             let lastTime = performance.now();
@@ -243,6 +267,7 @@ void main() {
             gl.uniform1f(uniform.baseRadius, baseRadius);
             gl.uniform1f(uniform.influenceRadius, influenceRadius);
             gl.uniform1f(uniform.maxScale, maxScale);
+            gl.uniform1f(uniform.velocityDecay, velocityDecay);
 
             const resize = () => {
                 const rect = canvas.getBoundingClientRect();
@@ -297,6 +322,11 @@ void main() {
                 if (!mouseActive) {
                     currentMouseX = x;
                     currentMouseY = y;
+
+                    previousMouseX = x;
+                    previousMouseY = y;
+
+                    mouseVelocity = 0;
                 }
 
                 mouseActive = true;
@@ -329,6 +359,22 @@ void main() {
                     deltaTime,
                 );
 
+                const dx = currentMouseX - previousMouseX;
+                const dy = currentMouseY - previousMouseY;
+
+                const rawVelocity =
+                    Math.hypot(dx, dy) / Math.max(deltaTime, 0.001);
+
+                mouseVelocity = damp(
+                    mouseVelocity,
+                    mouseActive ? rawVelocity : 0,
+                    velocityLerpSpeed,
+                    deltaTime,
+                );
+
+                previousMouseX = currentMouseX;
+                previousMouseY = currentMouseY;
+
                 currentInfluence = damp(
                     currentInfluence,
                     mouseActive ? 1 : 0,
@@ -339,6 +385,8 @@ void main() {
                 gl.uniform2f(uniform.mouse, currentMouseX, currentMouseY);
 
                 gl.uniform1f(uniform.mouseInfluence, currentInfluence);
+
+                gl.uniform1f(uniform.mouseVelocity, mouseVelocity);
 
                 gl.drawArrays(gl.TRIANGLES, 0, 3);
 

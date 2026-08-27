@@ -12,9 +12,9 @@ const {
     spacing = 18,
     baseRadius = 0.5,
     influenceRadius = 140,
-    maxScale = 14,
-    mouseLerpSpeed = 0.12,
-    radiusLerpSpeed = 0.12,
+    maxScale = 12,
+    mouseLerpSpeed = 8,
+    radiusLerpSpeed = 3,
 } = Astro.props;
 ---
 
@@ -28,178 +28,323 @@ const {
     data-radius-lerp-speed={radiusLerpSpeed}></canvas>
 
 <script>
+    const vertexShaderSource = `#version 300 es
+precision highp float;
+
+void main() {
+  vec2 positions[3] = vec2[](
+    vec2(-1.0, -1.0),
+    vec2( 3.0, -1.0),
+    vec2(-1.0,  3.0)
+  );
+
+  gl_Position = vec4(positions[gl_VertexID], 0.0, 1.0);
+}
+`;
+
+    const fragmentShaderSource = `#version 300 es
+precision highp float;
+
+uniform vec2 uResolution;
+uniform vec2 uMouse;
+
+uniform float uDpr;
+uniform float uSpacing;
+uniform float uBaseRadius;
+uniform float uInfluenceRadius;
+uniform float uMaxScale;
+uniform float uMouseInfluence;
+
+out vec4 outColor;
+
+void main() {
+  vec2 pos = gl_FragCoord.xy / uDpr;
+  pos.y = uResolution.y - pos.y;
+
+  vec2 cell = mod(pos, uSpacing) - uSpacing * 0.5;
+  float dotDistance = length(cell);
+
+  float influence =
+    1.0 - smoothstep(
+      0.0,
+      uInfluenceRadius,
+      distance(pos, uMouse)
+    );
+
+  influence *= uMouseInfluence;
+  influence *= influence;
+
+  float radius =
+    uBaseRadius *
+    mix(
+      1.0,
+      uMaxScale,
+      influence
+    );
+
+  float aa = max(fwidth(dotDistance), 0.5);
+
+  float alpha =
+    1.0 - smoothstep(
+      radius - aa,
+      radius + aa,
+      dotDistance
+    );
+
+  outColor = vec4(
+    1.0,
+    1.0,
+    1.0,
+    alpha * 0.35
+  );
+}
+`;
+
+    const createShader = (
+        gl: WebGL2RenderingContext,
+        type: number,
+        source: string,
+    ) => {
+        const shader = gl.createShader(type);
+
+        if (!shader) {
+            throw new Error("Failed to create shader");
+        }
+
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            const error = gl.getShaderInfoLog(shader);
+
+            gl.deleteShader(shader);
+
+            throw new Error(error ?? "Failed to compile shader");
+        }
+
+        return shader;
+    };
+
+    const createProgram = (
+        gl: WebGL2RenderingContext,
+        vertexSource: string,
+        fragmentSource: string,
+    ) => {
+        const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexSource);
+
+        const fragmentShader = createShader(
+            gl,
+            gl.FRAGMENT_SHADER,
+            fragmentSource,
+        );
+
+        const program = gl.createProgram();
+
+        if (!program) {
+            throw new Error("Failed to create WebGL program");
+        }
+
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+
+        gl.deleteShader(vertexShader);
+        gl.deleteShader(fragmentShader);
+
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            const error = gl.getProgramInfoLog(program);
+
+            gl.deleteProgram(program);
+
+            throw new Error(error ?? "Failed to link WebGL program");
+        }
+
+        return program;
+    };
+
+    const damp = (
+        current: number,
+        target: number,
+        speed: number,
+        deltaTime: number,
+    ) => {
+        const t = 1 - Math.exp(-speed * deltaTime);
+
+        return current + (target - current) * t;
+    };
+
     document
         .querySelectorAll<HTMLCanvasElement>(".halftone")
         .forEach((canvas) => {
-            if (canvas instanceof HTMLCanvasElement) {
-                const ctx = canvas.getContext("2d");
+            const gl = canvas.getContext("webgl2", {
+                alpha: true,
+                antialias: false,
+                premultipliedAlpha: false,
+            });
 
-                const spacing = Number(canvas.dataset.spacing);
-                const baseRadius = Number(canvas.dataset.baseRadius);
-                const influenceRadius = Number(canvas.dataset.influenceRadius);
-                const maxScale = Number(canvas.dataset.maxScale);
-
-                const mouseLerpSpeed = Number(canvas.dataset.mouseLerpSpeed);
-                const radiusLerpSpeed = Number(canvas.dataset.radiusLerpSpeed);
-
-                let mouseActive = false;
-
-                let targetMouseX = 0;
-                let targetMouseY = 0;
-
-                let currentMouseX = 0;
-                let currentMouseY = 0;
-
-                let lastWidth = 0;
-                let lastHeight = 0;
-
-                let dots: {
-                    x: number;
-                    y: number;
-                    radius: number;
-                }[] = [];
-
-                const lerp = (a: number, b: number, t: number) => {
-                    return a + (b - a) * t;
-                };
-
-                const rebuildDots = () => {
-                    dots = [];
-                    const rect = canvas.getBoundingClientRect();
-
-                    for (let y = 0; y < rect.height; y += spacing) {
-                        for (let x = 0; x < rect.width; x += spacing) {
-                            dots.push({
-                                x,
-                                y,
-                                radius: baseRadius,
-                            });
-                        }
-                    }
-                };
-
-                const resize = () => {
-                    const dpr = window.devicePixelRatio || 1;
-                    const rect = canvas.getBoundingClientRect();
-
-                    if (
-                        rect.width === lastWidth &&
-                        rect.height === lastHeight
-                    ) {
-                        return;
-                    }
-
-                    lastWidth = rect.width;
-                    lastHeight = rect.height;
-
-                    canvas.width = rect.width * dpr;
-                    canvas.height = rect.height * dpr;
-
-                    ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-                    rebuildDots();
-                };
-
-                window.addEventListener("mousemove", (event) => {
-                    const rect = canvas.getBoundingClientRect();
-
-                    targetMouseX = event.clientX - rect.left;
-                    targetMouseY = event.clientY - rect.top;
-
-                    // check with AABB
-                    const inside =
-                        targetMouseX >= 0 &&
-                        targetMouseX <= rect.width &&
-                        targetMouseY >= 0 &&
-                        targetMouseY <= rect.height;
-
-                    if (!inside) {
-                        mouseActive = false;
-                        return;
-                    }
-
-                    if (!mouseActive) {
-                        currentMouseX = targetMouseX;
-                        currentMouseY = targetMouseY;
-                    }
-
-                    mouseActive = true;
-                });
-
-                document.documentElement.addEventListener("mouseleave", () => {
-                    mouseActive = false;
-                });
-
-                window.addEventListener("blur", () => {
-                    mouseActive = false;
-                });
-
-                const resizeObserver = new ResizeObserver(() => {
-                    resize();
-                });
-
-                resizeObserver.observe(canvas);
-
-                resize();
-
-                const draw = () => {
-                    if (!ctx) return;
-
-                    const rect = canvas.getBoundingClientRect();
-
-                    ctx.clearRect(0, 0, rect.width, rect.height);
-
-                    if (mouseActive) {
-                        currentMouseX = lerp(
-                            currentMouseX,
-                            targetMouseX,
-                            mouseLerpSpeed,
-                        );
-
-                        currentMouseY = lerp(
-                            currentMouseY,
-                            targetMouseY,
-                            mouseLerpSpeed,
-                        );
-                    }
-
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
-
-                    for (const dot of dots) {
-                        let targetRadius = baseRadius;
-
-                        if (mouseActive) {
-                            const dx = dot.x - currentMouseX;
-                            const dy = dot.y - currentMouseY;
-
-                            const distance = Math.sqrt(dx * dx + dy * dy);
-
-                            const influence = Math.max(
-                                0,
-                                1 - distance / influenceRadius,
-                            );
-
-                            const eased = influence * influence;
-
-                            targetRadius =
-                                baseRadius * (1 + eased * (maxScale - 1));
-                        }
-
-                        dot.radius = lerp(
-                            dot.radius,
-                            targetRadius,
-                            radiusLerpSpeed,
-                        );
-
-                        ctx.beginPath();
-                        ctx.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-
-                    requestAnimationFrame(draw);
-                };
-
-                draw();
+            if (!gl) {
+                console.error("WebGL2 is not supported");
+                return;
             }
+
+            const program = createProgram(
+                gl,
+                vertexShaderSource,
+                fragmentShaderSource,
+            );
+
+            gl.useProgram(program);
+            gl.clearColor(0, 0, 0, 0);
+
+            const uniform = {
+                resolution: gl.getUniformLocation(program, "uResolution"),
+                mouse: gl.getUniformLocation(program, "uMouse"),
+
+                dpr: gl.getUniformLocation(program, "uDpr"),
+                spacing: gl.getUniformLocation(program, "uSpacing"),
+                baseRadius: gl.getUniformLocation(program, "uBaseRadius"),
+                influenceRadius: gl.getUniformLocation(
+                    program,
+                    "uInfluenceRadius",
+                ),
+                maxScale: gl.getUniformLocation(program, "uMaxScale"),
+                mouseInfluence: gl.getUniformLocation(
+                    program,
+                    "uMouseInfluence",
+                ),
+            };
+
+            const spacing = Number(canvas.dataset.spacing);
+            const baseRadius = Number(canvas.dataset.baseRadius);
+            const influenceRadius = Number(canvas.dataset.influenceRadius);
+            const maxScale = Number(canvas.dataset.maxScale);
+
+            const mouseLerpSpeed = Number(canvas.dataset.mouseLerpSpeed);
+
+            const radiusLerpSpeed = Number(canvas.dataset.radiusLerpSpeed);
+
+            let width = 0;
+            let height = 0;
+            let dpr = 1;
+
+            let mouseActive = false;
+
+            let targetMouseX = 0;
+            let targetMouseY = 0;
+
+            let currentMouseX = 0;
+            let currentMouseY = 0;
+
+            let currentInfluence = 0;
+
+            let lastTime = performance.now();
+
+            gl.uniform1f(uniform.spacing, spacing);
+            gl.uniform1f(uniform.baseRadius, baseRadius);
+            gl.uniform1f(uniform.influenceRadius, influenceRadius);
+            gl.uniform1f(uniform.maxScale, maxScale);
+
+            const resize = () => {
+                const rect = canvas.getBoundingClientRect();
+
+                width = rect.width;
+                height = rect.height;
+
+                dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+                const pixelWidth = Math.round(width * dpr);
+                const pixelHeight = Math.round(height * dpr);
+
+                if (
+                    canvas.width === pixelWidth &&
+                    canvas.height === pixelHeight
+                ) {
+                    return;
+                }
+
+                canvas.width = pixelWidth;
+                canvas.height = pixelHeight;
+
+                gl.viewport(0, 0, canvas.width, canvas.height);
+
+                gl.uniform2f(uniform.resolution, width, height);
+
+                gl.uniform1f(uniform.dpr, dpr);
+            };
+
+            const resizeObserver = new ResizeObserver(resize);
+
+            resizeObserver.observe(canvas);
+            resize();
+
+            window.addEventListener("mousemove", (event) => {
+                const rect = canvas.getBoundingClientRect();
+
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+
+                const inside =
+                    x >= 0 && x <= rect.width && y >= 0 && y <= rect.height;
+
+                if (!inside) {
+                    mouseActive = false;
+                    return;
+                }
+
+                targetMouseX = x;
+                targetMouseY = y;
+
+                if (!mouseActive) {
+                    currentMouseX = x;
+                    currentMouseY = y;
+                }
+
+                mouseActive = true;
+            });
+
+            document.documentElement.addEventListener("mouseleave", () => {
+                mouseActive = false;
+            });
+
+            window.addEventListener("blur", () => {
+                mouseActive = false;
+            });
+
+            const draw = (time: number) => {
+                const deltaTime = Math.min((time - lastTime) / 1000, 0.1);
+
+                lastTime = time;
+
+                currentMouseX = damp(
+                    currentMouseX,
+                    targetMouseX,
+                    mouseLerpSpeed,
+                    deltaTime,
+                );
+
+                currentMouseY = damp(
+                    currentMouseY,
+                    targetMouseY,
+                    mouseLerpSpeed,
+                    deltaTime,
+                );
+
+                currentInfluence = damp(
+                    currentInfluence,
+                    mouseActive ? 1 : 0,
+                    radiusLerpSpeed,
+                    deltaTime,
+                );
+
+                gl.uniform2f(uniform.mouse, currentMouseX, currentMouseY);
+
+                gl.uniform1f(uniform.mouseInfluence, currentInfluence);
+
+                gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+                requestAnimationFrame(draw);
+            };
+
+            requestAnimationFrame(draw);
         });
 </script>

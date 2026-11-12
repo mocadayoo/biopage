@@ -1,0 +1,83 @@
+<div class="scroll-indicator" data-scroll-indicator data-visible="false" aria-hidden="true">
+    <span class="scroll-indicator__arrow"></span>
+</div>
+
+<style>
+    .scroll-indicator {
+        position: fixed;
+        right: max(1.5rem, env(safe-area-inset-right));
+        bottom: max(1.75rem, env(safe-area-inset-bottom));
+        z-index: 30;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+    }
+
+    .scroll-indicator[data-visible="true"] {
+        opacity: 1;
+    }
+
+    .scroll-indicator__arrow {
+        display: block;
+        width: 40px;
+        height: 64px;
+        background: linear-gradient(
+            105deg,
+            rgb(180 180 180 / 0) 40%,
+            rgb(180 180 180 / 0.08) 43%,
+            rgb(180 180 180 / 0.28) 46.5%,
+            rgb(180 180 180 / 0.7) 50%,
+            rgb(180 180 180 / 0.28) 53.5%,
+            rgb(180 180 180 / 0.08) 57%,
+            rgb(180 180 180 / 0) 60%
+        );
+        background-size: 300% 300%;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 64'%3E%3Cpath d='M20 5v52M6 43l14 14 14-14' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+        animation: arrow-light 4.5s linear infinite;
+    }
+
+    .scroll-indicator[data-visible="false"] .scroll-indicator__arrow {
+        animation-play-state: paused;
+    }
+
+    @keyframes arrow-light {
+        from { background-position: 100% 100%; }
+        to { background-position: 0% 0%; }
+    }
+
+    @media (min-width: 768px) {
+        .scroll-indicator {
+            right: max(2.5rem, env(safe-area-inset-right));
+            bottom: max(2.5rem, env(safe-area-inset-bottom));
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .scroll-indicator { transition: none; }
+        .scroll-indicator__arrow {
+            animation: none;
+            background-position: 50% 50%;
+        }
+    }
+</style>
+
+<script>
+    const indicator = document.querySelector<HTMLElement>("[data-scroll-indicator]");
+
+    if (indicator) {
+        let frame = 0;
+        const update = () => {
+            frame = 0;
+            const remaining = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+            indicator.dataset.visible = String(remaining > 8);
+        };
+        const scheduleUpdate = () => {
+            if (!frame) frame = requestAnimationFrame(update);
+        };
+
+        window.addEventListener("scroll", scheduleUpdate, { passive: true });
+        window.addEventListener("resize", scheduleUpdate);
+        new ResizeObserver(scheduleUpdate).observe(document.body);
+        update();
+    }
+</script>

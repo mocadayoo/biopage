@@ -106,12 +106,9 @@ void main() {
       dotDistance
     );
 
-  outColor = vec4(
-    1.0,
-    1.0,
-    1.0,
-    alpha * 0.55
-  );
+  // Supply premultiplied colors to match the canvas compositing mode.
+  float opacity = alpha * 0.55;
+  outColor = vec4(vec3(opacity), opacity);
 }
 `;
 
@@ -191,10 +188,20 @@ void main() {
     document
         .querySelectorAll<HTMLCanvasElement>(".halftone")
         .forEach((canvas) => {
+            // Development-only comparison: remove the canvas before creating
+            // a WebGL context, leaving the same video and layout underneath.
+            if (
+                import.meta.env.DEV &&
+                new URLSearchParams(window.location.search).get("halftone") === "off"
+            ) {
+                canvas.style.display = "none";
+                return;
+            }
+
             const gl = canvas.getContext("webgl2", {
                 alpha: true,
                 antialias: false,
-                premultipliedAlpha: false,
+                premultipliedAlpha: true,
             });
 
             if (!gl) {
@@ -248,6 +255,8 @@ void main() {
             let dpr = 1;
 
             let mouseActive = false;
+            let hasMousePosition = false;
+            let tapTimeout: number | undefined;
 
             let targetMouseX = 0;
             let targetMouseY = 0;
@@ -302,11 +311,11 @@ void main() {
             resizeObserver.observe(canvas);
             resize();
 
-            window.addEventListener("mousemove", (event) => {
+            const updatePosition = (clientX: number, clientY: number, preservePosition = false) => {
                 const rect = canvas.getBoundingClientRect();
 
-                const x = event.clientX - rect.left;
-                const y = event.clientY - rect.top;
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
 
                 const inside =
                     x >= 0 && x <= rect.width && y >= 0 && y <= rect.height;
@@ -319,7 +328,7 @@ void main() {
                 targetMouseX = x;
                 targetMouseY = y;
 
-                if (!mouseActive) {
+                if (!mouseActive && !(preservePosition && hasMousePosition)) {
                     currentMouseX = x;
                     currentMouseY = y;
 
@@ -329,16 +338,69 @@ void main() {
                     mouseVelocity = 0;
                 }
 
+                hasMousePosition = true;
                 mouseActive = true;
+            };
+
+            // Ignore touch-generated mouse events so they cannot leave hover stuck on.
+            window.addEventListener("pointermove", (event) => {
+                if (event.pointerType !== "mouse") return;
+                window.clearTimeout(tapTimeout);
+                updatePosition(event.clientX, event.clientY);
             });
 
-            document.documentElement.addEventListener("mouseleave", () => {
-                mouseActive = false;
-            });
+            const activateTap = (clientX: number, clientY: number) => {
+                window.clearTimeout(tapTimeout);
+                updatePosition(clientX, clientY, true);
+                if (mouseActive) {
+                    tapTimeout = window.setTimeout(() => {
+                        mouseActive = false;
+                    }, 1000);
+                }
+            };
 
-            window.addEventListener("blur", () => {
+            let tapStart: { id: number; x: number; y: number } | undefined;
+            window.addEventListener("touchstart", (event) => {
+                const touch = event.touches[0];
+                tapStart = event.touches.length === 1
+                    ? { id: touch.identifier, x: touch.clientX, y: touch.clientY }
+                    : undefined;
+            }, { passive: true });
+
+            window.addEventListener("touchmove", (event) => {
+                if (!tapStart) return;
+                const touch = Array.from(event.touches).find(
+                    (touch) => touch.identifier === tapStart?.id,
+                );
+                if (!touch || Math.hypot(touch.clientX - tapStart.x, touch.clientY - tapStart.y) > 10) {
+                    tapStart = undefined;
+                }
+            }, { passive: true });
+
+            window.addEventListener("touchend", (event) => {
+                if (!tapStart) return;
+                const touch = Array.from(event.changedTouches).find(
+                    (touch) => touch.identifier === tapStart?.id,
+                );
+                if (touch && Math.hypot(touch.clientX - tapStart.x, touch.clientY - tapStart.y) <= 10) {
+                    activateTap(touch.clientX, touch.clientY);
+                }
+                tapStart = undefined;
+            }, { passive: true });
+
+            window.addEventListener("touchcancel", () => {
+                tapStart = undefined;
+            }, { passive: true });
+
+            const clearHover = () => {
+                window.clearTimeout(tapTimeout);
                 mouseActive = false;
+            };
+
+            document.documentElement.addEventListener("pointerleave", (event) => {
+                if (event.pointerType === "mouse") clearHover();
             });
+            window.addEventListener("blur", clearHover);
 
             const draw = (time: number) => {
                 const deltaTime = Math.min((time - lastTime) / 1000, 0.1);

@@ -7,9 +7,9 @@ import githubIcon from "../assets/github.svg";
 import Halftone from "./Halftone.astro";
 ---
 
-<section class="relative h-dvh w-full overflow-hidden border-6 border-cyan-500">
+<section class="relative isolate h-svh w-full overflow-hidden border-6 border-cyan-500 bg-[#181818] md:h-dvh">
     <video
-        class="absolute inset-0 h-full w-full object-cover brightness-95"
+        class="absolute inset-0 h-full w-full object-cover"
         autoplay
         muted
         loop
@@ -17,6 +17,8 @@ import Halftone from "./Halftone.astro";
     >
         <source src={topVideo} type="video/mp4" />
     </video>
+
+    <div aria-hidden="true" class="pointer-events-none absolute inset-0 bg-black/5"></div>
 
     <Halftone />
 
